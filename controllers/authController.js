@@ -5,88 +5,96 @@ const User = require('../models/userModel');
 const secret = require('../config/auth.config');
 
 /*This funtion will be called when user will register itself in our application */
-exports.singUp = (req, res) => {
-    const email = req.body.email;
-    const password = req.body.password;
+exports.singUp = async (req, res, next) => {
+	const email = req.body.email;
+	const password = req.body.password;
+	try {
+		var user = await User.findOne({ email: email });
+	} catch (error) {
+		return res.json({
+			message: error,
+			type: 'error',
+		});
+	}
+	//This will check that user is Registered User or not
+	if (user) {
+		return res.json({
+			message: 'Already registered with this email id!!',
+			type: 'error',
+		});
+	} else {
+		let hashedpassword = await bcrypt.hash(password, 12);
 
-    User.findOne( {email: email} )
-    .then(userData => {
-        if(userData) {  /* if the email is found then user is already registered */
-            res.json({
-                message: 'Already registered with this email id!!',
-                type:'error'
-            })
-        }else {
-            bcrypt.hash(password, 12)
-            .then((hashedPassword) => {
-                const user = new User({    /* creating a new instance of User Schema and addiing the details of user for registeration */
-                    username: req.body.name,
-                    email: req.body.email,
-                    password: hashedPassword,s
-                });
-                user.save()
-                .then(result => {
-                    res.status(201).json({
-                        message: 'Registeration Successful!!',
-                        type: 'success'
-                    })
-                })
-                .catch(err => {
-                    console.log(err);
-                })
-            })
-            .catch(err => {
-                console.log(err);
-            })
-        }
-    })
-    .catch(err => {
-        console.log(err);
-    });
-}
+		if (hashedpassword) {
+			const user = new User({
+				userName: req.body.name,
+				mobile: req.body.mobile,
+				email: req.body.email,
+				password: hashedpassword,
+				dob: req.body.dob,
+				doj: req.body.doj,
+			});
 
+			try {
+				var userRegistered = await user.save();
+			} catch (error) {
+				return res.json({
+					message: error,
+					type: 'error',
+				});
+			}
+			if (userRegistered) {
+				return res.status(201).json({
+					message: 'Registration Successful!!',
+					type: 'success',
+				});
+			}
+		}
+	}
+};
 
-/* This funtion will be called  user will click on the sign in button */
-exports.singIn = (req,res) => {
-    const email = req.body.email;
-    const password = req.body.password;
+/* This funtion will be called once the user will click on the sign in button */
+exports.singIn = async (req, res, next) => {
+	const email = req.body.userName;
+	const password = req.body.password;
 
-    User.findOne({ email: email})
-    .then( user => {
-        if(user.length > 0) {      /*  if user exists then compare the password */
-            bcrypt.compare(password, user[0].password)
-            .then( passwordIsValid => {
-                if(passwordIsValid) {
-                    const token = jwt.sign({  /* if password is valid then assign the token */
-                        email: user.email
-                    }, 
-                    secret, 
-                    {
-                        expiresIn: 86400 // 24 hours
-                    });
-                    res.status(200).json({
-                        meassage: 'Login Successful!!',
-                        type: 'success',
-                        token: token,
-                    });
-                }else {
-                    res.status(401).json({
-                        meassage: 'Please enter correct password!!',
-                        type: 'error'
-                    });
-                }
-            })
-            .catch( err => {
-                console.log(err);
-            })
-        } else {
-            res.status(401).json({
-                message: 'Incorrect User Name!!',
-                type: 'error'
-            });
-        }
-    })
-    .catch(err => {
-        console.log(err);
-    })
-}
+	try {
+		var user = await User.findOne({ email: email });
+	} catch (error) {
+		return res.send(500).json({
+			message: error,
+			type: 'error',
+		});
+	}
+
+	if (user) {
+		let passwordMatched = await bcrypt.compare(password, user.password);
+
+		if (passwordMatched) {
+			const token = jwt.sign(
+				{
+					email: user.email,
+				},
+				'my_secret_sports_basketball',
+				{ expiresIn: 3600 }
+			);
+			return res.json({
+				message: 'LoggIn Successful!!',
+				type: 'success',
+				token: token,
+				expiresIn: 3600,
+				userData: user,
+			});
+		} else {
+			return res.json({
+				message: 'Please enter correct password!!',
+				type: 'error',
+			});
+		}
+	} else {
+		return res.json({
+			message: 'Incorrect User Name!!',
+			type: 'error',
+		});
+	}
+};
